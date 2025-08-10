@@ -1,16 +1,89 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 
 const defaultSkills = [
   'python','n8n','selenium','api','automation','postgres','docker','github-actions','react','fastapi'
 ];
 
+interface ProfileData {
+  github_username?: string;
+  upwork_profile_url?: string;
+  skills: string[];
+  rate_min: number;
+  rate_max: number;
+  score_threshold: number;
+  github_data?: any;
+}
+
 export default function ProfileTabs() {
   const [tab, setTab] = useState<'sources' | 'preferences'>('sources');
   const [skills, setSkills] = useState<string[]>(defaultSkills);
   const [rateMin, setRateMin] = useState<number>(25);
   const [rateMax, setRateMax] = useState<number>(90);
+  const [githubUsername, setGithubUsername] = useState<string>('');
+  const [upworkProfile, setUpworkProfile] = useState<string>('');
+  const [threshold, setThreshold] = useState<number>(0.6);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [message, setMessage] = useState<string>('');
+
+  // Load profile data on component mount
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      const response = await fetch('/api/profile');
+      if (response.ok) {
+        const data: ProfileData = await response.json();
+        setSkills(data.skills || defaultSkills);
+        setRateMin(data.rate_min || 25);
+        setRateMax(data.rate_max || 90);
+        setGithubUsername(data.github_username || '');
+        setUpworkProfile(data.upwork_profile_url || '');
+        setThreshold(data.score_threshold || 0.6);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      setMessage('Failed to load profile data');
+    }
+  };
+
+  const saveProfile = async () => {
+    setLoading(true);
+    setMessage('');
+    
+    try {
+      const profileData: ProfileData = {
+        github_username: githubUsername,
+        upwork_profile_url: upworkProfile,
+        skills,
+        rate_min: rateMin,
+        rate_max: rateMax,
+        score_threshold: threshold
+      };
+
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (response.ok) {
+        setMessage('Profile updated successfully!');
+      } else {
+        throw new Error('Failed to update profile');
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setMessage('Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   function onDragEnd(result: DropResult) {
     if (!result.destination) return;
@@ -90,6 +163,8 @@ export default function ProfileTabs() {
                   type="text" 
                   placeholder="octocat" 
                   className="input"
+                  value={githubUsername}
+                  onChange={(e) => setGithubUsername(e.target.value)}
                 />
               </div>
 
@@ -110,6 +185,8 @@ export default function ProfileTabs() {
                   type="url" 
                   placeholder="https://www.upwork.com/freelancers/~01..." 
                   className="input"
+                  value={upworkProfile}
+                  onChange={(e) => setUpworkProfile(e.target.value)}
                 />
               </div>
             </div>
@@ -143,12 +220,38 @@ export default function ProfileTabs() {
               </div>
             </div>
 
+            {/* Status Message */}
+            {message && (
+              <div className={`p-3 rounded-lg text-sm ${
+                message.includes('successfully') 
+                  ? 'bg-green-50 text-green-800 border border-green-200' 
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
+                {message}
+              </div>
+            )}
+
             <div className="flex justify-end pt-4">
-              <button className="btn btn-primary">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Save Profile Sources
+              <button 
+                className="btn btn-primary"
+                onClick={saveProfile}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <svg className="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Profile Sources
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -253,7 +356,8 @@ export default function ProfileTabs() {
                 <input 
                   type="number" 
                   step="0.01" 
-                  defaultValue={0.6} 
+                  value={threshold}
+                  onChange={(e) => setThreshold(parseFloat(e.target.value || '0.6'))}
                   className="input"
                   min="0"
                   max="1"
@@ -271,12 +375,38 @@ export default function ProfileTabs() {
               </div>
             </div>
 
+            {/* Status Message */}
+            {message && (
+              <div className={`p-3 rounded-lg text-sm ${
+                message.includes('successfully') 
+                  ? 'bg-green-50 text-green-800 border border-green-200' 
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
+                {message}
+              </div>
+            )}
+
             <div className="flex justify-end pt-4">
-              <button className="btn btn-primary">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Save Preferences
+              <button 
+                className="btn btn-primary"
+                onClick={saveProfile}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <svg className="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Preferences
+                  </>
+                )}
               </button>
             </div>
           </div>
