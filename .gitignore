@@ -1,0 +1,33 @@
+
+# Next.js project in ui/
+ui/node_modules/
+ui/.env
+ui/.next/
+ui/dist/
+ui/.vercel/
+ui/.turbo/
+ui/out/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+
+# VS Code
+.vscode/
+
+# Misc
+*.log
+*.sqlite3

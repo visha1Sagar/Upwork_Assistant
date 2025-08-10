@@ -1,0 +1,199 @@
+"use client";
+import useSWR from 'swr';
+import { useState, useMemo } from 'react';
+import JobList from './JobList';
+
+const fetcher = (url: string) => fetch(url).then(r => r.json());
+
+export default function JobsDashboard() {
+  const { data, error, isLoading } = useSWR('/api/jobs', fetcher, { refreshInterval: 30000 });
+  const [showAboveOnly, setShowAboveOnly] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const jobs = data?.jobs || [];
+  const threshold = 0.6;
+
+  const [sortBy, setSortBy] = useState<'time' | 'score'>('time');
+  // Helper to parse posted time string to minutes ago
+  function postedMinutesAgo(posted: string): number {
+    if (!posted) return 99999;
+    if (posted.includes('minute')) return parseInt(posted) || 0;
+    if (posted.includes('hour')) return (parseInt(posted) || 0) * 60;
+    if (posted.includes('day')) return (parseInt(posted) || 0) * 1440;
+    return 99999;
+  }
+  const filtered = useMemo(() => {
+    let arr = showAboveOnly ? jobs.filter((j: any) => j.score >= threshold) : jobs;
+    if (sortBy === 'score') {
+      arr = [...arr].sort((a, b) => b.score - a.score);
+    } else {
+      arr = [...arr].sort((a, b) => postedMinutesAgo(a.posted) - postedMinutesAgo(b.posted));
+    }
+    return arr;
+  }, [jobs, showAboveOnly, sortBy]);
+
+  const stats = useMemo(() => {
+    const total = jobs.length;
+    const aboveThreshold = jobs.filter((j: any) => j.score >= threshold).length;
+    const avgScore = jobs.length > 0 ? jobs.reduce((sum: number, job: any) => sum + job.score, 0) / jobs.length : 0;
+    return { total, aboveThreshold, avgScore };
+  }, [jobs, threshold]);
+
+  return (
+    <div className="space-y-6">
+      {/* Filter Tabs - Outside the collapsible section */}
+      <div className="flex items-center justify-between">
+        <div className="flex-1 flex justify-center">
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setShowAboveOnly(false)}
+              className={`px-4 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
+                !showAboveOnly 
+                  ? 'bg-white text-upwork-700 shadow-sm border border-gray-200' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              All Jobs ({stats.total})
+            </button>
+            <button
+              onClick={() => setShowAboveOnly(true)}
+              className={`px-4 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
+                showAboveOnly 
+                  ? 'bg-white text-upwork-700 shadow-sm border border-gray-200' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              High Match ({stats.aboveThreshold})
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center">
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value as 'time' | 'score')}
+            className="input px-2 py-1 text-sm rounded-md border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-upwork-400 min-w-[90px]"
+            style={{ minWidth: '90px' }}
+          >
+            <option value="time">Newest</option>
+            <option value="score">Best Match</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Collapsible Job Opportunities Section */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        {/* Clickable Header */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full p-6 text-left hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900">Job Opportunities</h2>
+              <p className="text-gray-600 mt-1">AI-powered job matching and scoring</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-success-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-gray-600">Live monitoring</span>
+              </div>
+              <svg 
+                className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+        </button>
+
+        {/* Expandable Content */}
+        {isExpanded && (
+          <div className="px-6 pb-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-r from-upwork-50 to-upwork-100 rounded-lg p-4 border border-upwork-200">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-upwork-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-upwork-800">Total Jobs</p>
+                    <p className="text-2xl font-semibold text-upwork-900">{stats.total}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-success-50 to-success-100 rounded-lg p-4 border border-success-200">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-success-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-success-800">High Match</p>
+                    <p className="text-2xl font-semibold text-success-900">{stats.aboveThreshold}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-brand-50 to-brand-100 rounded-lg p-4 border border-brand-200">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-brand-800">Avg Score</p>
+                    <p className="text-2xl font-semibold text-brand-900">{(stats.avgScore * 100).toFixed(0)}%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-danger-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-danger-800">Error loading jobs</h3>
+              <p className="text-sm text-danger-600 mt-1">Please try refreshing the page or check your connection.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="bg-white rounded-lg border border-gray-200 p-8">
+          <div className="flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-upwork-600 mb-4"></div>
+            <p className="text-gray-600">Loading fresh opportunities...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Job List */}
+      <JobList jobs={filtered} />
+    </div>
+  );
+}

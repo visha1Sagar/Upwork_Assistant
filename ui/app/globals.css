@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Custom global styles */
+@layer base {
+  body { 
+    @apply bg-gray-50 text-gray-900 antialiased font-sans;
+  }
+  h1, h2, h3 { @apply font-semibold text-gray-900; }
+  a { @apply text-upwork-600 hover:text-upwork-700 transition-colors; }
+}
+
+/* Component utility classes */
+@layer components {
+  .card { 
+    @apply bg-white border border-gray-200 rounded-lg shadow-card hover:shadow-card-hover transition-all duration-200; 
+  }
+  .btn { 
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2; 
+  }
+  .btn-primary { 
+    @apply bg-upwork-600 text-white border border-upwork-600 hover:bg-upwork-700 focus:ring-upwork-500; 
+  }
+  .btn-secondary { 
+    @apply bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-upwork-500; 
+  }
+  .btn-ghost { 
+    @apply bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900; 
+  }
+  .badge { 
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; 
+  }
+  .badge-success { @apply bg-success-100 text-success-800; }
+  .badge-warning { @apply bg-warning-100 text-warning-800; }
+  .badge-danger { @apply bg-danger-100 text-danger-800; }
+  .input { 
+    @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-upwork-500 focus:border-upwork-500; 
+  }
+  .tab-active { 
+    @apply bg-upwork-600 text-white border-upwork-600; 
+  }
+  .tab-inactive { 
+    @apply bg-white text-gray-700 border-gray-300 hover:bg-gray-50; 
+  }
+}
+
+/* Custom scrollbar */
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgb(156 163 175) rgb(243 244 246); }
+.scrollbar-thin::-webkit-scrollbar { width: 6px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: rgb(243 244 246); }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgb(156 163 175); border-radius: 3px; }
