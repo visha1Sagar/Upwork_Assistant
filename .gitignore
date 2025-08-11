@@ -31,3 +31,4 @@ venv/
 # Misc
 *.log
 *.sqlite3
+*.db
