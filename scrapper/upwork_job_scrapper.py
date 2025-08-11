@@ -64,10 +64,20 @@ def manual_upwork_viewer(url):
             time.sleep(1)
         print("\n🚀 Starting extraction now!                    ")
         
+        # Wait a bit more for dynamic content to load
+        print("⏳ Waiting for page content to fully load...")
+        time.sleep(5)
+        
         print("\n🔍 Attempting to extract visible content...")
         
         # Extract comprehensive job data
         jobs = extract_comprehensive_job_data(driver)
+        
+        # If no jobs found, try waiting longer and retry
+        if not jobs:
+            print("⏳ No jobs found, waiting 10 more seconds and retrying...")
+            time.sleep(10)
+            jobs = extract_comprehensive_job_data(driver)
         
         return jobs
         
@@ -100,8 +110,14 @@ def extract_comprehensive_job_data(driver):
             "section[data-test='job-tile']",
             "div[data-cy='job-tile']",
             ".job-tile",
+            "article[data-testid*='job']",
+            "div[data-testid*='job']",
+            ".job-card",
+            ".up-card-section",
             "article",
-            "section"
+            "section",
+            "div[class*='job']",
+            "div[class*='card']"
         ]
         
         for selector in selectors:

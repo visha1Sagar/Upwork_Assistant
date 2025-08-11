@@ -112,10 +112,39 @@ export default function JobList({ jobs }: { jobs: Job[] }) {
           <div className="flex items-start gap-6">
             {/* Job Content */}
             <div className="flex-1 min-w-0">
-              {/* Full Description */}
-              <p className="text-gray-700 text-sm leading-relaxed mb-4">
-                {job.description}
+              {/* Truncated Description - First 2-3 lines */}
+              <p className="text-gray-700 text-sm leading-relaxed mb-4 line-clamp-3">
+                {job.description || 'No description available.'}
               </p>
+              
+              {/* Skills Section */}
+              {job.skills && job.skills.length > 0 ? (
+                <div className="mb-4">
+                  <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {job.skills.slice(0, 6).map((skill, skillIndex) => (
+                      <span
+                        key={skillIndex}
+                        className="px-2 py-1 bg-upwork-50 text-upwork-700 text-xs rounded-md border border-upwork-200 font-medium"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                    {job.skills.length > 6 && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md border">
+                        +{job.skills.length - 6} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-4">
+                  <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Skills</h4>
+                  <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md border italic">
+                    No skills specified
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Score Badge */}

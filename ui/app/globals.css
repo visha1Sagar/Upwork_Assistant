@@ -45,6 +45,20 @@
   .tab-inactive { 
     @apply bg-white text-gray-700 border-gray-300 hover:bg-gray-50; 
   }
+  
+  /* Text truncation utilities */
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
 }
 
 /* Custom scrollbar */

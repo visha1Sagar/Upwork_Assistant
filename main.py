@@ -66,7 +66,7 @@ class JobFilter(BaseModel):
     skills_filter: Optional[List[str]] = None
 
 class ScrapingConfig(BaseModel):
-    search_terms: Optional[List[str]] = None
+    search_terms: Optional[List[str]] = ["python", "automation", "api"]
     max_jobs: int = MAX_JOBS_PER_SCRAPE
     auto_scrape: bool = False
 
@@ -510,66 +510,146 @@ async def scrape_jobs_background(config: ScrapingConfig):
         
         logger.info("Starting job scraping...")
         
-        # Note: This is a placeholder implementation
-        # The actual scraping would use the upwork_job_scrapper module
-        # For now, we'll create some sample jobs
+        # Use the actual upwork_job_scrapper module
+        url = "https://www.upwork.com/nx/search/jobs/?nbs=1&q=python"
+        if config.search_terms:
+            # Use first search term or combine them
+            search_query = "+".join(config.search_terms)
+            url = f"https://www.upwork.com/nx/search/jobs/?nbs=1&q={search_query}"
         
         # Get current profile skills for scoring
         cursor.execute("SELECT skills FROM profile ORDER BY updated_at DESC LIMIT 1")
         profile_result = cursor.fetchone()
         profile_skills = json.loads(profile_result[0]) if profile_result and profile_result[0] else DEFAULT_SKILLS
         
-        # Simulate scraping by creating sample jobs (replace with actual scraper)
-        sample_jobs = [
-            {
-                'id': f'job_{datetime.now().timestamp()}_{i}',
-                'title': f'Sample Job {i}',
-                'description': f'Sample job description {i}',
-                'posted': '5 minutes ago',
-                'url': f'https://upwork.com/job/{i}',
-                'budget': '$30.00 - $60.00',
-                'duration': '1 to 3 months',
-                'experience_level': 'intermediate',
-                'skills': ['Python', 'API', 'Automation'],
-                'client': {
-                    'rating': 4.8,
-                    'location': 'United States',
-                    'verified': True,
-                    'total_spent': '$10K+',
-                    'payment_verified': True
-                },
-                'proposals': 10
-            }
-            for i in range(min(config.max_jobs, 10))  # Limit sample jobs
-        ]
+        # Call the upwork scraper
+        scraped_jobs = manual_upwork_viewer(url)
         
         jobs_added = 0
-        for job_data in sample_jobs:
-            score = calculate_job_score(job_data, profile_skills)
-            above_threshold = score >= DEFAULT_SCORE_THRESHOLD
+        if scraped_jobs and len(scraped_jobs) > 0:
+            logger.info(f"Successfully scraped {len(scraped_jobs)} jobs from Upwork")
+            for job_data in scraped_jobs[:config.max_jobs]:  # Limit to max_jobs
+                # Generate unique ID if not present
+                job_id = job_data.get('id') or f"job_{datetime.now().timestamp()}_{jobs_added}"
+                
+                # Extract and clean data
+                title = job_data.get('title', 'Untitled Job')
+                description = job_data.get('description', '')
+                job_url = job_data.get('job_url', job_data.get('url', ''))
+                budget = job_data.get('budget', '')
+                posted = job_data.get('posted', job_data.get('scraped_at', ''))
+                
+                # Extract skills (might be in different formats)
+                job_skills = job_data.get('skills', [])
+                if isinstance(job_skills, str):
+                    job_skills = [skill.strip() for skill in job_skills.split(',') if skill.strip()]
+                
+                # Calculate score
+                score = calculate_job_score({'skills': job_skills, 'budget': budget}, profile_skills)
+                above_threshold = score >= DEFAULT_SCORE_THRESHOLD
+                
+                # Extract client info
+                client_info = {
+                    'rating': job_data.get('client_rating', 'N/A'),
+                    'location': job_data.get('client_location', 'N/A'),
+                    'verified': job_data.get('client_verified', False),
+                    'total_spent': job_data.get('client_spent', 'N/A'),
+                    'payment_verified': job_data.get('payment_verified', False)
+                }
+                
+                try:
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO jobs 
+                        (id, title, description, score, posted, url, budget, duration, 
+                         experience_level, skills, client_info, proposals, above_threshold, 
+                         scraped_at, is_active)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+                    """, (
+                        job_id,
+                        title,
+                        description,
+                        score,
+                        posted,
+                        job_url,
+                        budget,
+                        job_data.get('duration', ''),
+                        job_data.get('experience_level', ''),
+                        json.dumps(job_skills),
+                        json.dumps(client_info),
+                        job_data.get('proposals', 0),
+                        above_threshold
+                    ))
+                    jobs_added += 1
+                except Exception as e:
+                    logger.error(f"Error inserting job {job_id}: {e}")
+                    continue
+        else:
+            logger.warning("No jobs scraped from Upwork - this could be due to:")
+            logger.warning("1. Page loading issues or anti-bot measures")
+            logger.warning("2. Changes in Upwork's page structure")
+            logger.warning("3. Network connectivity issues")
+            logger.warning("4. The search query returned no results")
             
-            cursor.execute("""
-                INSERT OR REPLACE INTO jobs 
-                (id, title, description, score, posted, url, budget, duration, 
-                 experience_level, skills, client_info, proposals, above_threshold, 
-                 scraped_at, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
-            """, (
-                job_data['id'],
-                job_data['title'],
-                job_data['description'],
-                score,
-                job_data['posted'],
-                job_data['url'],
-                job_data['budget'],
-                job_data['duration'],
-                job_data['experience_level'],
-                json.dumps(job_data['skills']),
-                json.dumps(job_data['client']),
-                job_data['proposals'],
-                above_threshold
-            ))
-            jobs_added += 1
+            # For demonstration purposes, create a few sample jobs when scraping fails
+            if not config.auto_scrape:  # Only for manual scraping, not auto
+                logger.info("Creating sample jobs for demonstration...")
+                sample_jobs = [
+                    {
+                        'title': f'Sample {" ".join(config.search_terms)} Job {i+1}',
+                        'description': f'This is a sample job posting for {", ".join(config.search_terms)} skills. Real scraping failed, so this is demonstration data.',
+                        'job_url': f'https://upwork.com/sample-job-{i+1}',
+                        'budget': f'${25 + i*5}.00 - ${50 + i*10}.00',
+                        'posted': f'{i*2 + 1} hours ago',
+                        'skills': config.search_terms[:2] + ['communication', 'problem-solving'],
+                        'duration': '1 to 3 months',
+                        'experience_level': 'intermediate',
+                        'proposals': 5 + i*3,
+                        'client_rating': 4.5 + (i * 0.1),
+                        'client_location': ['United States', 'Canada', 'United Kingdom'][i % 3]
+                    }
+                    for i in range(3)  # Create 3 sample jobs
+                ]
+                
+                for job_data in sample_jobs:
+                    job_id = f"sample_job_{datetime.now().timestamp()}_{jobs_added}"
+                    
+                    score = calculate_job_score({'skills': job_data['skills'], 'budget': job_data['budget']}, profile_skills)
+                    above_threshold = score >= DEFAULT_SCORE_THRESHOLD
+                    
+                    client_info = {
+                        'rating': job_data.get('client_rating', 'N/A'),
+                        'location': job_data.get('client_location', 'N/A'),
+                        'verified': True,
+                        'total_spent': '$5K+',
+                        'payment_verified': True
+                    }
+                    
+                    try:
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO jobs 
+                            (id, title, description, score, posted, url, budget, duration, 
+                             experience_level, skills, client_info, proposals, above_threshold, 
+                             scraped_at, is_active)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+                        """, (
+                            job_id,
+                            job_data['title'],
+                            job_data['description'],
+                            score,
+                            job_data['posted'],
+                            job_data['job_url'],
+                            job_data['budget'],
+                            job_data['duration'],
+                            job_data['experience_level'],
+                            json.dumps(job_data['skills']),
+                            json.dumps(client_info),
+                            job_data['proposals'],
+                            above_threshold
+                        ))
+                        jobs_added += 1
+                    except Exception as e:
+                        logger.error(f"Error inserting sample job {job_id}: {e}")
+                        continue
         
         # Update scraping log
         cursor.execute("""
@@ -630,7 +710,20 @@ async def automatic_scraper():
             
             # Run scraping
             logger.info("Running automatic scraping...")
-            config = ScrapingConfig(max_jobs=20, auto_scrape=True)
+            
+            # Get user's top skills for search terms
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT skills FROM profile ORDER BY updated_at DESC LIMIT 1")
+            profile_result = cursor.fetchone()
+            conn.close()
+            
+            if profile_result and profile_result[0]:
+                profile_skills = json.loads(profile_result[0])
+                # Use top 3 skills as search terms
+                search_terms = profile_skills[:3]
+            
+            config = ScrapingConfig(max_jobs=20, auto_scrape=True, search_terms=search_terms)
             await scrape_jobs_background(config)
             
         except Exception as e:
