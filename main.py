@@ -14,6 +14,8 @@ import asyncio
 from datetime import datetime, timedelta
 import sqlite3
 import logging
+import threading
+import time
 
 # Import local modules
 import sys
@@ -21,19 +23,11 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config import *
-try:
-    from profile.github_scrapper import fetch_all_readmes
-except ImportError:
-    # Fallback if module not found
-    def fetch_all_readmes(username, token=None):
-        return []
+from profile.github_scrapper import fetch_all_readmes
 
-try:
-    from scrapper.upwork_job_scrapper import manual_upwork_viewer
-except ImportError:
-    # Fallback if module not found
-    def manual_upwork_viewer(url):
-        return None
+
+from scrapper.upwork_job_scrapper import manual_upwork_viewer
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -59,10 +53,11 @@ app.add_middleware(
 class ProfileConfig(BaseModel):
     github_username: Optional[str] = None
     upwork_profile_url: Optional[str] = None
-    skills: List[str] = DEFAULT_SKILLS
-    rate_min: int = DEFAULT_RATE_MIN
-    rate_max: int = DEFAULT_RATE_MAX
+    skills: Optional[List[str]] = None
+    rate_min: Optional[int] = 0
+    rate_max: Optional[int] = 100
     score_threshold: float = DEFAULT_SCORE_THRESHOLD
+    scrape_frequency: Optional[str] = "30min"
 
 class JobFilter(BaseModel):
     show_above_threshold_only: bool = False
@@ -115,10 +110,19 @@ def init_database():
             rate_min INTEGER,
             rate_max INTEGER,
             score_threshold REAL,
+            scrape_frequency TEXT DEFAULT '30min',
             github_data TEXT,  -- JSON object
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    
+    # Add scrape_frequency column if it doesn't exist (migration)
+    try:
+        cursor.execute("ALTER TABLE profile ADD COLUMN scrape_frequency TEXT DEFAULT '30min'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        # Column already exists
+        pass
     
     # Scraping logs table
     cursor.execute("""
@@ -162,12 +166,6 @@ def calculate_job_score(job_data: Dict, profile_skills: List[str]) -> float:
         score += 0.05
     
     return min(score, 1.0)  # Cap at 1.0
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
-    init_database()
-    logger.info("Upwork Assistant API started successfully")
 
 # API Endpoints
 
@@ -251,7 +249,7 @@ async def get_profile():
     try:
         cursor.execute("""
             SELECT github_username, upwork_profile_url, skills, rate_min, rate_max, 
-                   score_threshold, github_data 
+                   score_threshold, scrape_frequency, github_data 
             FROM profile 
             ORDER BY updated_at DESC 
             LIMIT 1
@@ -266,7 +264,8 @@ async def get_profile():
                 "rate_min": row[3] or DEFAULT_RATE_MIN,
                 "rate_max": row[4] or DEFAULT_RATE_MAX,
                 "score_threshold": row[5] or DEFAULT_SCORE_THRESHOLD,
-                "github_data": json.loads(row[6]) if row[6] else None
+                "scrape_frequency": row[6] or "30min",
+                "github_data": json.loads(row[7]) if row[7] else None
             }
         else:
             # Return default profile
@@ -277,6 +276,7 @@ async def get_profile():
                 "rate_min": DEFAULT_RATE_MIN,
                 "rate_max": DEFAULT_RATE_MAX,
                 "score_threshold": DEFAULT_SCORE_THRESHOLD,
+                "scrape_frequency": "30min",
                 "github_data": None
             }
     
@@ -302,8 +302,8 @@ async def update_profile(profile: ProfileConfig, background_tasks: BackgroundTas
         cursor.execute("""
             INSERT OR REPLACE INTO profile 
             (id, github_username, upwork_profile_url, skills, rate_min, rate_max, 
-             score_threshold, github_data, updated_at)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+             score_threshold, scrape_frequency, github_data, updated_at)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """, (
             profile.github_username,
             profile.upwork_profile_url,
@@ -311,6 +311,7 @@ async def update_profile(profile: ProfileConfig, background_tasks: BackgroundTas
             profile.rate_min,
             profile.rate_max,
             profile.score_threshold,
+            profile.scrape_frequency,
             json.dumps(github_data) if github_data else None
         ))
         
@@ -421,6 +422,8 @@ async def fetch_github_data(username: str):
     try:
         logger.info(f"Fetching GitHub data for user: {username}")
         readmes = fetch_all_readmes(username, token=GITHUB_TOKEN)
+
+        logger.info(f"Fetched {len(readmes)}, {readmes} repositories for {username}")
         
         # Store GitHub data in profile
         conn = get_db_connection()
@@ -578,6 +581,59 @@ async def scrape_jobs_background(config: ScrapingConfig):
     
     finally:
         conn.close()
+
+# Automatic scraping scheduler
+def get_scrape_interval_minutes(frequency: str) -> int:
+    """Convert frequency string to minutes"""
+    if frequency == "5min":
+        return 5
+    elif frequency == "30min":
+        return 30
+    elif frequency == "1hour":
+        return 60
+    else:
+        return 30  # default
+
+async def automatic_scraper():
+    """Background task that runs automatic scraping based on user preferences"""
+    logger.info("Starting automatic scraper...")
+    
+    while True:
+        try:
+            # Get current profile scraping frequency
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT scrape_frequency FROM profile ORDER BY updated_at DESC LIMIT 1")
+            result = cursor.fetchone()
+            conn.close()
+            
+            frequency = result[0] if result else "30min"
+            interval_minutes = get_scrape_interval_minutes(frequency)
+            
+            logger.info(f"Next scraping in {interval_minutes} minutes (frequency: {frequency})")
+            
+            # Wait for the specified interval
+            await asyncio.sleep(interval_minutes * 60)
+            
+            # Run scraping
+            logger.info("Running automatic scraping...")
+            config = ScrapingConfig(max_jobs=20, auto_scrape=True)
+            await scrape_jobs_background(config)
+            
+        except Exception as e:
+            logger.error(f"Error in automatic scraper: {e}")
+            # Wait 5 minutes before retrying on error
+            await asyncio.sleep(300)
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and start automatic scraper on startup"""
+    init_database()
+    logger.info("Upwork Assistant API started successfully")
+    
+    # Start automatic scraper in background
+    asyncio.create_task(automatic_scraper())
 
 if __name__ == "__main__":
     import uvicorn

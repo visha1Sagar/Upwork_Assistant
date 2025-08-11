@@ -13,6 +13,7 @@ interface ProfileData {
   rate_min: number;
   rate_max: number;
   score_threshold: number;
+  scrape_frequency?: string;
   github_data?: any;
 }
 
@@ -24,8 +25,17 @@ export default function ProfileTabs() {
   const [githubUsername, setGithubUsername] = useState<string>('');
   const [upworkProfile, setUpworkProfile] = useState<string>('');
   const [threshold, setThreshold] = useState<number>(0.6);
+  const [scrapeFrequency, setScrapeFrequency] = useState<string>('30min');
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string>('');
+  
+  // Track original values to detect changes
+  const [originalGithubUsername, setOriginalGithubUsername] = useState<string>('');
+  const [originalUpworkProfile, setOriginalUpworkProfile] = useState<string>('');
+  
+  // Track refresh loading states
+  const [refreshingGithub, setRefreshingGithub] = useState<boolean>(false);
+  const [refreshingUpwork, setRefreshingUpwork] = useState<boolean>(false);
 
   // Load profile data on component mount
   useEffect(() => {
@@ -43,6 +53,11 @@ export default function ProfileTabs() {
         setGithubUsername(data.github_username || '');
         setUpworkProfile(data.upwork_profile_url || '');
         setThreshold(data.score_threshold || 0.6);
+        setScrapeFrequency(data.scrape_frequency || '30min');
+        
+        // Store original values
+        setOriginalGithubUsername(data.github_username || '');
+        setOriginalUpworkProfile(data.upwork_profile_url || '');
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -61,7 +76,8 @@ export default function ProfileTabs() {
         skills,
         rate_min: rateMin,
         rate_max: rateMax,
-        score_threshold: threshold
+        score_threshold: threshold,
+        scrape_frequency: scrapeFrequency
       };
 
       const response = await fetch('/api/profile', {
@@ -74,6 +90,9 @@ export default function ProfileTabs() {
 
       if (response.ok) {
         setMessage('Profile updated successfully!');
+        // Update original values after successful save
+        setOriginalGithubUsername(githubUsername);
+        setOriginalUpworkProfile(upworkProfile);
       } else {
         throw new Error('Failed to update profile');
       }
@@ -82,6 +101,164 @@ export default function ProfileTabs() {
       setMessage('Failed to update profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveProfileSources = async () => {
+    setLoading(true);
+    setMessage('');
+    
+    try {
+      // Check if GitHub username or Upwork profile changed
+      const githubChanged = githubUsername !== originalGithubUsername && githubUsername.trim() !== '';
+      const upworkChanged = upworkProfile !== originalUpworkProfile && upworkProfile.trim() !== '';
+      
+      const profileData: ProfileData = {
+        github_username: githubUsername,
+        upwork_profile_url: upworkProfile,
+        skills,
+        rate_min: rateMin,
+        rate_max: rateMax,
+        score_threshold: threshold,
+        scrape_frequency: scrapeFrequency
+      };
+
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (response.ok) {
+        let message = 'Profile sources updated successfully!';
+        if (githubChanged || upworkChanged) {
+          message += ' Data will be refreshed in the background.';
+        }
+        setMessage(message);
+        
+        // Update original values after successful save
+        setOriginalGithubUsername(githubUsername);
+        setOriginalUpworkProfile(upworkProfile);
+      } else {
+        throw new Error('Failed to update profile sources');
+      }
+    } catch (error) {
+      console.error('Error saving profile sources:', error);
+      setMessage('Failed to update profile sources');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const savePreferences = async () => {
+    setLoading(true);
+    setMessage('');
+    
+    try {
+      const profileData: ProfileData = {
+        github_username: githubUsername,
+        upwork_profile_url: upworkProfile,
+        skills,
+        rate_min: rateMin,
+        rate_max: rateMax,
+        score_threshold: threshold,
+        scrape_frequency: scrapeFrequency
+      };
+
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (response.ok) {
+        setMessage('Preferences updated successfully!');
+      } else {
+        throw new Error('Failed to update preferences');
+      }
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+      setMessage('Failed to update preferences');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshGithubData = async () => {
+    if (!githubUsername.trim()) return;
+    
+    setRefreshingGithub(true);
+    try {
+      const profileData: ProfileData = {
+        github_username: githubUsername,
+        upwork_profile_url: upworkProfile,
+        skills,
+        rate_min: rateMin,
+        rate_max: rateMax,
+        score_threshold: threshold,
+        scrape_frequency: scrapeFrequency
+      };
+
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (response.ok) {
+        setMessage('GitHub data refreshed successfully!');
+        setOriginalGithubUsername(githubUsername);
+      } else {
+        throw new Error('Failed to refresh GitHub data');
+      }
+    } catch (error) {
+      console.error('Error refreshing GitHub data:', error);
+      setMessage('Failed to refresh GitHub data');
+    } finally {
+      setRefreshingGithub(false);
+    }
+  };
+
+  const refreshUpworkData = async () => {
+    if (!upworkProfile.trim()) return;
+    
+    setRefreshingUpwork(true);
+    try {
+      const profileData: ProfileData = {
+        github_username: githubUsername,
+        upwork_profile_url: upworkProfile,
+        skills,
+        rate_min: rateMin,
+        rate_max: rateMax,
+        score_threshold: threshold,
+        scrape_frequency: scrapeFrequency
+      };
+
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (response.ok) {
+        setMessage('Upwork profile data refreshed successfully!');
+        setOriginalUpworkProfile(upworkProfile);
+      } else {
+        throw new Error('Failed to refresh Upwork data');
+      }
+    } catch (error) {
+      console.error('Error refreshing Upwork data:', error);
+      setMessage('Failed to refresh Upwork data');
+    } finally {
+      setRefreshingUpwork(false);
     }
   };
 
@@ -365,13 +542,17 @@ export default function ProfileTabs() {
                 <p className="text-xs text-gray-600">Jobs below this score won't trigger alerts</p>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-900">Alert Frequency</label>
-                <select className="input">
-                  <option value="realtime">Real-time</option>
-                  <option value="hourly">Every hour</option>
-                  <option value="daily">Daily digest</option>
-                  <option value="weekly">Weekly summary</option>
+                <label className="block text-sm font-semibold text-gray-900">Scraping Frequency</label>
+                <select 
+                  value={scrapeFrequency}
+                  onChange={(e) => setScrapeFrequency(e.target.value)}
+                  className="input"
+                >
+                  <option value="5min">Real-time (5 minutes)</option>
+                  <option value="30min">Every 30 minutes</option>
+                  <option value="1hour">Every hour</option>
                 </select>
+                <p className="text-xs text-gray-600">How often to automatically check for new jobs</p>
               </div>
             </div>
 
