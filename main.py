@@ -58,6 +58,7 @@ class ProfileConfig(BaseModel):
     rate_max: Optional[int] = 100
     score_threshold: float = DEFAULT_SCORE_THRESHOLD
     scrape_frequency: Optional[str] = "30min"
+    refresh_github: Optional[bool] = False
 
 class JobFilter(BaseModel):
     show_above_threshold_only: bool = False
@@ -293,9 +294,20 @@ async def update_profile(profile: ProfileConfig, background_tasks: BackgroundTas
     cursor = conn.cursor()
     
     try:
-        # If GitHub username provided, schedule GitHub data fetch
+        # Check if we should fetch GitHub data
+        should_fetch_github = False
+        if profile.github_username and profile.refresh_github:
+            should_fetch_github = True
+        elif profile.github_username:
+            # Check if GitHub username changed
+            cursor.execute("SELECT github_username FROM profile ORDER BY updated_at DESC LIMIT 1")
+            result = cursor.fetchone()
+            existing_username = result[0] if result else None
+            should_fetch_github = existing_username != profile.github_username
+        
+        # If GitHub username provided and should fetch, schedule GitHub data fetch
         github_data = None
-        if profile.github_username:
+        if should_fetch_github:
             background_tasks.add_task(fetch_github_data, profile.github_username)
         
         # Insert or update profile

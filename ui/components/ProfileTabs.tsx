@@ -14,6 +14,7 @@ interface ProfileData {
   rate_max: number;
   score_threshold: number;
   scrape_frequency?: string;
+  refresh_github?: boolean;
   github_data?: any;
 }
 
@@ -200,7 +201,8 @@ export default function ProfileTabs() {
         rate_min: rateMin,
         rate_max: rateMax,
         score_threshold: threshold,
-        scrape_frequency: scrapeFrequency
+        scrape_frequency: scrapeFrequency,
+        refresh_github: true
       };
 
       const response = await fetch('/api/profile', {
@@ -237,7 +239,8 @@ export default function ProfileTabs() {
         rate_min: rateMin,
         rate_max: rateMax,
         score_threshold: threshold,
-        scrape_frequency: scrapeFrequency
+        scrape_frequency: scrapeFrequency,
+        refresh_github: true
       };
 
       const response = await fetch('/api/profile', {
@@ -336,13 +339,33 @@ export default function ProfileTabs() {
                     <p className="text-xs text-gray-600">We'll analyze your repositories and READMEs</p>
                   </div>
                 </div>
-                <input 
-                  type="text" 
-                  placeholder="octocat" 
-                  className="input"
-                  value={githubUsername}
-                  onChange={(e) => setGithubUsername(e.target.value)}
-                />
+                <div className="flex space-x-2">
+                  <input 
+                    type="text" 
+                    placeholder="octocat" 
+                    className="input flex-1"
+                    value={githubUsername}
+                    onChange={(e) => setGithubUsername(e.target.value)}
+                  />
+                  {githubUsername.trim() && (
+                    <button
+                      onClick={refreshGithubData}
+                      disabled={refreshingGithub}
+                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border border-gray-300 transition-colors disabled:opacity-50"
+                      title="Refresh GitHub data"
+                    >
+                      {refreshingGithub ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Upwork Profile */}
@@ -358,13 +381,33 @@ export default function ProfileTabs() {
                     <p className="text-xs text-gray-600">Your public Upwork freelancer profile</p>
                   </div>
                 </div>
-                <input 
-                  type="url" 
-                  placeholder="https://www.upwork.com/freelancers/~01..." 
-                  className="input"
-                  value={upworkProfile}
-                  onChange={(e) => setUpworkProfile(e.target.value)}
-                />
+                <div className="flex space-x-2">
+                  <input 
+                    type="url" 
+                    placeholder="https://www.upwork.com/freelancers/~01..." 
+                    className="input flex-1"
+                    value={upworkProfile}
+                    onChange={(e) => setUpworkProfile(e.target.value)}
+                  />
+                  {upworkProfile.trim() && (
+                    <button
+                      onClick={refreshUpworkData}
+                      disabled={refreshingUpwork}
+                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border border-gray-300 transition-colors disabled:opacity-50"
+                      title="Refresh Upwork profile data"
+                    >
+                      {refreshingUpwork ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -411,7 +454,7 @@ export default function ProfileTabs() {
             <div className="flex justify-end pt-4">
               <button 
                 className="btn btn-primary"
-                onClick={saveProfile}
+                onClick={saveProfileSources}
                 disabled={loading}
               >
                 {loading ? (
@@ -570,7 +613,7 @@ export default function ProfileTabs() {
             <div className="flex justify-end pt-4">
               <button 
                 className="btn btn-primary"
-                onClick={saveProfile}
+                onClick={savePreferences}
                 disabled={loading}
               >
                 {loading ? (
