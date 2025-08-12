@@ -59,6 +59,10 @@ class ProfileConfig(BaseModel):
     score_threshold: float = DEFAULT_SCORE_THRESHOLD
     scrape_frequency: Optional[str] = "30min"
     refresh_github: Optional[bool] = False
+    email_address: Optional[str] = None
+    whatsapp_number: Optional[str] = None
+    notify_all_jobs: Optional[bool] = False
+    notify_above_threshold: Optional[bool] = True
 
 class JobFilter(BaseModel):
     show_above_threshold_only: bool = False
@@ -126,6 +130,22 @@ def init_database():
     except sqlite3.OperationalError:
         # Column already exists
         pass
+    
+    # Add alert fields if they don't exist (migration)
+    alert_columns = [
+        ("email_address", "TEXT"),
+        ("whatsapp_number", "TEXT"),
+        ("notify_all_jobs", "INTEGER DEFAULT 0"),
+        ("notify_above_threshold", "INTEGER DEFAULT 1")
+    ]
+    
+    for column_name, column_type in alert_columns:
+        try:
+            cursor.execute(f"ALTER TABLE profile ADD COLUMN {column_name} {column_type}")
+            conn.commit()
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
     
     # Scraping logs table
     cursor.execute("""
@@ -252,7 +272,8 @@ async def get_profile():
     try:
         cursor.execute("""
             SELECT github_username, upwork_profile_url, skills, rate_min, rate_max, 
-                   score_threshold, scrape_frequency, github_data 
+                   score_threshold, scrape_frequency, github_data, email_address, 
+                   whatsapp_number, notify_all_jobs, notify_above_threshold
             FROM profile 
             ORDER BY updated_at DESC 
             LIMIT 1
@@ -268,7 +289,11 @@ async def get_profile():
                 "rate_max": row[4] or DEFAULT_RATE_MAX,
                 "score_threshold": row[5] or DEFAULT_SCORE_THRESHOLD,
                 "scrape_frequency": row[6] or "30min",
-                "github_data": json.loads(row[7]) if row[7] else None
+                "github_data": json.loads(row[7]) if row[7] else None,
+                "email_address": row[8],
+                "whatsapp_number": row[9],
+                "notify_all_jobs": bool(row[10]) if row[10] is not None else False,
+                "notify_above_threshold": bool(row[11]) if row[11] is not None else True
             }
         else:
             # Return default profile
@@ -280,7 +305,11 @@ async def get_profile():
                 "rate_max": DEFAULT_RATE_MAX,
                 "score_threshold": DEFAULT_SCORE_THRESHOLD,
                 "scrape_frequency": "30min",
-                "github_data": None
+                "github_data": None,
+                "email_address": None,
+                "whatsapp_number": None,
+                "notify_all_jobs": False,
+                "notify_above_threshold": True
             }
     
     except Exception as e:
@@ -316,8 +345,9 @@ async def update_profile(profile: ProfileConfig, background_tasks: BackgroundTas
         cursor.execute("""
             INSERT OR REPLACE INTO profile 
             (id, github_username, upwork_profile_url, skills, rate_min, rate_max, 
-             score_threshold, scrape_frequency, github_data, updated_at)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+             score_threshold, scrape_frequency, github_data, email_address, whatsapp_number,
+             notify_all_jobs, notify_above_threshold, updated_at)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """, (
             profile.github_username,
             profile.upwork_profile_url,
@@ -326,7 +356,11 @@ async def update_profile(profile: ProfileConfig, background_tasks: BackgroundTas
             profile.rate_max,
             profile.score_threshold,
             profile.scrape_frequency,
-            json.dumps(github_data) if github_data else None
+            json.dumps(github_data) if github_data else None,
+            profile.email_address,
+            profile.whatsapp_number,
+            1 if profile.notify_all_jobs else 0,
+            1 if profile.notify_above_threshold else 0
         ))
         
         conn.commit()

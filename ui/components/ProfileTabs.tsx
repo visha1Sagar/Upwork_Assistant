@@ -15,11 +15,15 @@ interface ProfileData {
   score_threshold: number;
   scrape_frequency?: string;
   refresh_github?: boolean;
+  email_address?: string;
+  whatsapp_number?: string;
+  notify_all_jobs?: boolean;
+  notify_above_threshold?: boolean;
   github_data?: any;
 }
 
 export default function ProfileTabs() {
-  const [tab, setTab] = useState<'sources' | 'preferences'>('sources');
+  const [tab, setTab] = useState<'sources' | 'preferences' | 'alerts'>('sources');
   const [skills, setSkills] = useState<string[]>(defaultSkills);
   const [rateMin, setRateMin] = useState<number>(25);
   const [rateMax, setRateMax] = useState<number>(90);
@@ -27,6 +31,10 @@ export default function ProfileTabs() {
   const [upworkProfile, setUpworkProfile] = useState<string>('');
   const [threshold, setThreshold] = useState<number>(0.6);
   const [scrapeFrequency, setScrapeFrequency] = useState<string>('30min');
+  const [emailAddress, setEmailAddress] = useState<string>('');
+  const [whatsappNumber, setWhatsappNumber] = useState<string>('');
+  const [notifyAllJobs, setNotifyAllJobs] = useState<boolean>(false);
+  const [notifyAboveThreshold, setNotifyAboveThreshold] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string>('');
   
@@ -55,6 +63,10 @@ export default function ProfileTabs() {
         setUpworkProfile(data.upwork_profile_url || '');
         setThreshold(data.score_threshold || 0.6);
         setScrapeFrequency(data.scrape_frequency || '30min');
+        setEmailAddress(data.email_address || '');
+        setWhatsappNumber(data.whatsapp_number || '');
+        setNotifyAllJobs(data.notify_all_jobs || false);
+        setNotifyAboveThreshold(data.notify_above_threshold !== undefined ? data.notify_above_threshold : true);
         
         // Store original values
         setOriginalGithubUsername(data.github_username || '');
@@ -189,6 +201,46 @@ export default function ProfileTabs() {
     }
   };
 
+  const saveAlerts = async () => {
+    setLoading(true);
+    setMessage('');
+    
+    try {
+      const profileData: ProfileData = {
+        github_username: githubUsername,
+        upwork_profile_url: upworkProfile,
+        skills,
+        rate_min: rateMin,
+        rate_max: rateMax,
+        score_threshold: threshold,
+        scrape_frequency: scrapeFrequency,
+        email_address: emailAddress,
+        whatsapp_number: whatsappNumber,
+        notify_all_jobs: notifyAllJobs,
+        notify_above_threshold: notifyAboveThreshold
+      };
+
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (response.ok) {
+        setMessage('Alert settings saved successfully!');
+      } else {
+        throw new Error('Failed to save alert settings');
+      }
+    } catch (error) {
+      console.error('Error saving alert settings:', error);
+      setMessage('Failed to save alert settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const refreshGithubData = async () => {
     if (!githubUsername.trim()) return;
     
@@ -318,6 +370,21 @@ export default function ProfileTabs() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
               </svg>
               <span>Preferences</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setTab('alerts')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
+              tab === 'alerts'
+                ? 'bg-white text-upwork-700 shadow-sm border border-gray-200'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5V12h5m-5 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Alerts</span>
             </div>
           </button>
         </div>
@@ -629,6 +696,151 @@ export default function ProfileTabs() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     Save Preferences
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Alerts Tab */}
+        {tab === 'alerts' && (
+          <div className="space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-sm font-semibold text-blue-900">Notification Settings</h3>
+              </div>
+              <p className="text-sm text-blue-800">
+                Configure how you want to receive notifications about new job opportunities. 
+                You can get alerts via email or WhatsApp when new jobs match your criteria.
+              </p>
+            </div>
+
+            {/* Contact Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-900">Email Address</label>
+                <input 
+                  type="email" 
+                  value={emailAddress} 
+                  onChange={(e) => setEmailAddress(e.target.value)}
+                  placeholder="your.email@example.com"
+                  className="input"
+                />
+                <p className="text-xs text-gray-600">
+                  Optional: Enter your email to receive job notifications
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-900">WhatsApp Number</label>
+                <input 
+                  type="tel" 
+                  value={whatsappNumber} 
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  placeholder="+1234567890"
+                  className="input"
+                />
+                <p className="text-xs text-gray-600">
+                  Optional: Enter your WhatsApp number with country code
+                </p>
+              </div>
+            </div>
+
+            {/* Notification Preferences */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Notification Preferences</h3>
+              
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="notify-all"
+                    checked={notifyAllJobs}
+                    onChange={(e) => setNotifyAllJobs(e.target.checked)}
+                    className="w-4 h-4 text-upwork-600 bg-gray-100 border-gray-300 rounded focus:ring-upwork-500 focus:ring-2"
+                  />
+                  <label htmlFor="notify-all" className="text-sm font-medium text-gray-900">
+                    Notify for all matching jobs
+                  </label>
+                </div>
+                <p className="text-xs text-gray-600 ml-7">
+                  Get notified for every job that matches your criteria (rate range, skills, etc.)
+                </p>
+
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="notify-threshold"
+                    checked={notifyAboveThreshold}
+                    onChange={(e) => setNotifyAboveThreshold(e.target.checked)}
+                    className="w-4 h-4 text-upwork-600 bg-gray-100 border-gray-300 rounded focus:ring-upwork-500 focus:ring-2"
+                  />
+                  <label htmlFor="notify-threshold" className="text-sm font-medium text-gray-900">
+                    Only notify for high-score jobs (above threshold)
+                  </label>
+                </div>
+                <p className="text-xs text-gray-600 ml-7">
+                  Only get notified for jobs with scores above your threshold ({threshold})
+                </p>
+              </div>
+
+              {/* Preview */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Notification Preview</h4>
+                <div className="text-sm text-gray-700">
+                  {!emailAddress && !whatsappNumber && (
+                    <p className="text-amber-600">⚠️ Please add at least one contact method to receive notifications</p>
+                  )}
+                  {(emailAddress || whatsappNumber) && (
+                    <div className="space-y-1">
+                      <p>You will receive notifications via:</p>
+                      <ul className="list-disc list-inside ml-2 space-y-1">
+                        {emailAddress && <li>Email: {emailAddress}</li>}
+                        {whatsappNumber && <li>WhatsApp: {whatsappNumber}</li>}
+                      </ul>
+                      <p className="mt-2">
+                        Notification frequency: {notifyAllJobs ? "All matching jobs" : "Only high-score jobs"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Status Message */}
+            {message && (
+              <div className={`p-3 rounded-lg text-sm ${
+                message.includes('successfully') 
+                  ? 'bg-green-50 text-green-800 border border-green-200' 
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
+                {message}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4">
+              <button 
+                className="btn btn-primary"
+                onClick={saveAlerts}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <svg className="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Alert Settings
                   </>
                 )}
               </button>
