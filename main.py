@@ -66,7 +66,9 @@ class JobFilter(BaseModel):
     skills_filter: Optional[List[str]] = None
 
 class ScrapingConfig(BaseModel):
-    search_terms: Optional[List[str]] = ["python", "automation", "api"]
+    lower_rate: int = 0
+    upper_rate: int = 100
+    search_terms: Optional[List[str]] = ["Machine Learning", "n8n Automation", "Data Science"]
     max_jobs: int = MAX_JOBS_PER_SCRAPE
     auto_scrape: bool = False
 
@@ -511,19 +513,26 @@ async def scrape_jobs_background(config: ScrapingConfig):
         logger.info("Starting job scraping...")
         
         # Use the actual upwork_job_scrapper module
-        url = "https://www.upwork.com/nx/search/jobs/?nbs=1&q=python"
+        urls = [f"https://www.upwork.com/nx/search/jobs/?nbs=1&q=machine%20learning"]
+
         if config.search_terms:
-            # Use first search term or combine them
-            search_query = "+".join(config.search_terms)
-            url = f"https://www.upwork.com/nx/search/jobs/?nbs=1&q={search_query}"
-        
+            urls = []
+            for search_term in config.search_terms:
+
+                # Use first search term or combine them
+                search_query = "+" + search_term.replace(" ", "+")
+                url = f"https://www.upwork.com/nx/search/jobs/?nbs=1&per_page=20&proposals=0-4,5-9,10-14&q={search_query}&hourly_rate={config.lower_rate}-{config.upper_rate}&sort=recency&t=0,1"
+                urls.append(url)
+
         # Get current profile skills for scoring
         cursor.execute("SELECT skills FROM profile ORDER BY updated_at DESC LIMIT 1")
         profile_result = cursor.fetchone()
         profile_skills = json.loads(profile_result[0]) if profile_result and profile_result[0] else DEFAULT_SKILLS
-        
-        # Call the upwork scraper
-        scraped_jobs = manual_upwork_viewer(url)
+        scraped_jobs = []
+        for url in urls:
+            logger.info(f"Scraping jobs for skill: {url.split('&q=')[-1].split('&')[0]}")
+            # Call the upwork scraper
+            scraped_jobs.extend(manual_upwork_viewer(url))
         
         jobs_added = 0
         if scraped_jobs and len(scraped_jobs) > 0:
@@ -537,7 +546,11 @@ async def scrape_jobs_background(config: ScrapingConfig):
                 description = job_data.get('description', '')
                 job_url = job_data.get('job_url', job_data.get('url', ''))
                 budget = job_data.get('budget', '')
-                posted = job_data.get('posted', job_data.get('scraped_at', ''))
+                posted = job_data.get('posted', '')
+                
+                # If no posted time from scraper, use a relative time
+                if not posted or posted == job_data.get('scraped_at', ''):
+                    posted = 'Just posted'
                 
                 # Extract skills (might be in different formats)
                 job_skills = job_data.get('skills', [])

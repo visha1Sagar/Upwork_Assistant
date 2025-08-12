@@ -25,7 +25,7 @@ export async function GET() {
     const defaultProfile = {
       github_username: null,
       upwork_profile_url: null,
-      skills: ['python', 'n8n', 'selenium', 'api', 'automation', 'postgres', 'docker', 'github-actions', 'react', 'fastapi'],
+      skills: ['machine learning', 'n8n', 'datascience', 'default skills', 'automation', 'postgres', 'docker', 'github-actions', 'react', 'fastapi'],
       rate_min: 25,
       rate_max: 90,
       score_threshold: 0.6,

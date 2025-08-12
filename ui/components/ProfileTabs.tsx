@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 
 const defaultSkills = [
-  'python','n8n','selenium','api','automation','postgres','docker','github-actions','react','fastapi'
+  'machine learning','n8n','data science','default','skills','postgres','docker','github-actions','react','fastapi'
 ];
 
 interface ProfileData {

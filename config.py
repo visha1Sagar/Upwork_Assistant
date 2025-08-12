@@ -12,7 +12,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 # Upwork scraping settings
 SCRAPING_INTERVAL_MINUTES = int(os.getenv("SCRAPING_INTERVAL_MINUTES", "30"))
-MAX_JOBS_PER_SCRAPE = int(os.getenv("MAX_JOBS_PER_SCRAPE", "50"))
+MAX_JOBS_PER_SCRAPE = int(os.getenv("MAX_JOBS_PER_SCRAPE", "60"))
 
 # Scoring settings
 DEFAULT_SCORE_THRESHOLD = float(os.getenv("DEFAULT_SCORE_THRESHOLD", "0.6"))
@@ -28,8 +28,8 @@ SCRAPPER_DATA_DIR = "scrapper/data"
 
 # Default skills for matching
 DEFAULT_SKILLS = [
-    'python', 'n8n', 'selenium', 'api', 'automation', 
-    'postgres', 'docker', 'github-actions', 'react', 'fastapi'
+    'machine learning', 'n8n', 'data science', 'api', 'automation', 
+    'postgres', 'docker', 'github-actions', 'default', 'skills'
 ]
 
 # Rate limits

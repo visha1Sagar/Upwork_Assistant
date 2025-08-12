@@ -24,6 +24,76 @@ interface Job {
   aboveThreshold?: boolean;
 }
 
+// Helper function to format relative time
+function formatRelativeTime(dateString: string): string {
+  try {
+    // Handle different date formats
+    let date: Date;
+    
+    // If it's already a relative time string (like "2 hours ago"), return as is
+    if (dateString.includes('ago') || dateString.includes('minutes') || dateString.includes('hours') || dateString.includes('days')) {
+      return dateString;
+    }
+    
+    // If it's an ISO string, parse it
+    if (dateString.includes('T')) {
+      date = new Date(dateString);
+    } else {
+      // Try parsing as a regular date string
+      date = new Date(dateString);
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return dateString; // Return original if can't parse
+    }
+    
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    
+    if (diffInMinutes < 1) {
+      return 'Just now';
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours} hour${diffInHours === 1 ? '' : 's'} ago`;
+    } else if (diffInDays < 7) {
+      return `${diffInDays} day${diffInDays === 1 ? '' : 's'} ago`;
+    } else {
+      // For older dates, show the actual date
+      return date.toLocaleDateString();
+    }
+  } catch (error) {
+    // If any error occurs, return the original string
+    return dateString;
+  }
+}
+
+interface Job {
+  id: string;
+  title: string;
+  description: string;
+  score: number;
+  posted: string;
+  url: string;
+  budget?: string;
+  duration?: string;
+  experienceLevel?: string;
+  skills?: string[];
+  proposals?: number;
+  client?: {
+    rating: number;
+    location: string;
+    verified: boolean;
+    totalSpent?: string;
+    paymentVerified?: boolean;
+  };
+  aboveThreshold?: boolean;
+}
+
 export default function JobList({ jobs }: { jobs: Job[] }) {
   if (!jobs.length) {
     return (
@@ -45,7 +115,7 @@ export default function JobList({ jobs }: { jobs: Job[] }) {
         <div key={job.id} className="card p-6 hover:shadow-lg transition-all duration-300 group">
           {/* Header with Posted Time */}
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-gray-500">Posted {job.posted}</span>
+            <span className="text-sm text-gray-500">{formatRelativeTime(job.posted)}</span>
             <div className="flex items-center space-x-2">
               <button className="p-1 text-gray-400 hover:text-upwork-600 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
