@@ -12,7 +12,73 @@ import time
 import csv
 import json
 import glob
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
+
+
+def convert_relative_time_to_timestamp(relative_time_str):
+    """
+    Convert relative time strings like '2 hours ago', '1 day ago' to actual timestamps
+    """
+    if not relative_time_str or relative_time_str == 'N/A':
+        return datetime.now().isoformat()
+    
+    # Clean up the string
+    time_str = relative_time_str.lower().strip()
+    
+    # Current time as base
+    now = datetime.now()
+    
+    # Parse different formats
+    patterns = [
+        # "just posted", "posted just now"
+        (r'just\s*(posted|now)', 0, 'minutes'),
+        (r'posted\s*just\s*now', 0, 'minutes'),
+        
+        # "X minutes ago", "X minute ago"
+        (r'(\d+)\s*minutes?\s*ago', None, 'minutes'),
+        
+        # "X hours ago", "X hour ago"  
+        (r'(\d+)\s*hours?\s*ago', None, 'hours'),
+        
+        # "X days ago", "X day ago"
+        (r'(\d+)\s*days?\s*ago', None, 'days'),
+        
+        # "X weeks ago", "X week ago"
+        (r'(\d+)\s*weeks?\s*ago', None, 'weeks'),
+        
+        # "X months ago", "X month ago"
+        (r'(\d+)\s*months?\s*ago', None, 'months'),
+    ]
+    
+    for pattern, default_value, unit in patterns:
+        match = re.search(pattern, time_str)
+        if match:
+            if default_value is not None:
+                # For "just posted" cases
+                value = default_value
+            else:
+                # Extract number from the match
+                value = int(match.group(1))
+            
+            # Calculate the timestamp
+            if unit == 'minutes':
+                target_time = now - timedelta(minutes=value)
+            elif unit == 'hours':
+                target_time = now - timedelta(hours=value)
+            elif unit == 'days':
+                target_time = now - timedelta(days=value)
+            elif unit == 'weeks':
+                target_time = now - timedelta(weeks=value)
+            elif unit == 'months':
+                target_time = now - timedelta(days=value * 30)  # Approximate
+            else:
+                target_time = now
+                
+            return target_time.isoformat()
+    
+    # If we can't parse it, return current time
+    return now.isoformat()
 
 
 def create_manual_browser():
@@ -326,7 +392,8 @@ def extract_single_job(container, position):
         if posted_time != 'N/A':
             break
     
-    job_data['posted_time'] = posted_time
+    # Convert relative time to actual timestamp
+    job_data['posted_time'] = convert_relative_time_to_timestamp(posted_time)
     
     # Extract any additional text content for context
     try:
