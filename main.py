@@ -93,7 +93,7 @@ def init_database():
             title TEXT NOT NULL,
             description TEXT,
             score REAL DEFAULT 0.0,
-            posted TEXT,
+            posted_at TIMESTAMP,
             url TEXT,
             budget TEXT,
             duration TEXT,
@@ -106,6 +106,32 @@ def init_database():
             is_active BOOLEAN DEFAULT TRUE
         )
     """)
+    
+    # Migration: Rename 'posted' column to 'posted_at' if it exists
+    try:
+        # Check if old 'posted' column exists
+        cursor.execute("PRAGMA table_info(jobs)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'posted' in columns and 'posted_at' not in columns:
+            # Rename the column
+            cursor.execute("ALTER TABLE jobs RENAME COLUMN posted TO posted_at")
+            print("📦 Migrated 'posted' column to 'posted_at'")
+        elif 'posted' in columns and 'posted_at' in columns:
+            # Both exist, drop the old one
+            cursor.execute("""
+                CREATE TABLE jobs_new AS 
+                SELECT id, title, description, score, posted_at, url, budget, duration, 
+                       experience_level, skills, client_info, proposals, above_threshold, 
+                       scraped_at, is_active
+                FROM jobs
+            """)
+            cursor.execute("DROP TABLE jobs")
+            cursor.execute("ALTER TABLE jobs_new RENAME TO jobs")
+            print("📦 Cleaned up duplicate 'posted' and 'posted_at' columns")
+    except Exception as e:
+        print(f"⚠️ Migration note: {e}")
+        # If migration fails, just continue - the table structure should be correct for new installs
     
     # Profile table
     cursor.execute("""
@@ -225,7 +251,7 @@ async def get_jobs(
             order_clause = "ORDER BY score DESC, scraped_at DESC"
         
         query = f"""
-            SELECT id, title, description, score, posted, url, budget, duration, 
+            SELECT id, title, description, score, posted_at, url, budget, duration, 
                    experience_level, skills, client_info, proposals, above_threshold
             FROM jobs 
             {where_clause} 
@@ -580,11 +606,11 @@ async def scrape_jobs_background(config: ScrapingConfig):
                 description = job_data.get('description', '')
                 job_url = job_data.get('job_url', job_data.get('url', ''))
                 budget = job_data.get('budget', '')
-                posted = job_data.get('posted', '')
+                posted_time = job_data.get('posted_time', '')
                 
-                # If no posted time from scraper, use a relative time
-                if not posted or posted == job_data.get('scraped_at', ''):
-                    posted = 'Just posted'
+                # If no posted time from scraper, use current time
+                if not posted_time:
+                    posted_time = datetime.now().isoformat()
                 
                 # Extract skills (might be in different formats)
                 job_skills = job_data.get('skills', [])
@@ -607,7 +633,7 @@ async def scrape_jobs_background(config: ScrapingConfig):
                 try:
                     cursor.execute("""
                         INSERT OR REPLACE INTO jobs 
-                        (id, title, description, score, posted, url, budget, duration, 
+                        (id, title, description, score, posted_at, url, budget, duration, 
                          experience_level, skills, client_info, proposals, above_threshold, 
                          scraped_at, is_active)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
@@ -616,7 +642,7 @@ async def scrape_jobs_background(config: ScrapingConfig):
                         title,
                         description,
                         score,
-                        posted,
+                        posted_time,
                         job_url,
                         budget,
                         job_data.get('duration', ''),
@@ -646,7 +672,7 @@ async def scrape_jobs_background(config: ScrapingConfig):
                         'description': f'This is a sample job posting for {", ".join(config.search_terms)} skills. Real scraping failed, so this is demonstration data.',
                         'job_url': f'https://upwork.com/sample-job-{i+1}',
                         'budget': f'${25 + i*5}.00 - ${50 + i*10}.00',
-                        'posted': f'{i*2 + 1} hours ago',
+                        'posted_time': (datetime.now() - timedelta(hours=i*2 + 1)).isoformat(),  # Convert to timestamp
                         'skills': config.search_terms[:2] + ['communication', 'problem-solving'],
                         'duration': '1 to 3 months',
                         'experience_level': 'intermediate',
@@ -674,7 +700,7 @@ async def scrape_jobs_background(config: ScrapingConfig):
                     try:
                         cursor.execute("""
                             INSERT OR REPLACE INTO jobs 
-                            (id, title, description, score, posted, url, budget, duration, 
+                            (id, title, description, score, posted_at, url, budget, duration, 
                              experience_level, skills, client_info, proposals, above_threshold, 
                              scraped_at, is_active)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
@@ -683,7 +709,7 @@ async def scrape_jobs_background(config: ScrapingConfig):
                             job_data['title'],
                             job_data['description'],
                             score,
-                            job_data['posted'],
+                            job_data['posted_time'],  # This now contains ISO timestamp
                             job_data['job_url'],
                             job_data['budget'],
                             job_data['duration'],

@@ -13,20 +13,18 @@ export default function JobsDashboard() {
   const threshold = 0.6;
 
   const [sortBy, setSortBy] = useState<'time' | 'score'>('time');
-  // Helper to parse posted time string to minutes ago
-  function postedMinutesAgo(posted: string): number {
-    if (!posted) return 99999;
-    if (posted.includes('minute')) return parseInt(posted) || 0;
-    if (posted.includes('hour')) return (parseInt(posted) || 0) * 60;
-    if (posted.includes('day')) return (parseInt(posted) || 0) * 1440;
-    return 99999;
-  }
+  
   const filtered = useMemo(() => {
     let arr = showAboveOnly ? jobs.filter((j: any) => j.score >= threshold) : jobs;
     if (sortBy === 'score') {
       arr = [...arr].sort((a, b) => b.score - a.score);
     } else {
-      arr = [...arr].sort((a, b) => postedMinutesAgo(a.posted) - postedMinutesAgo(b.posted));
+      // Sort by timestamp (most recent first)
+      arr = [...arr].sort((a, b) => {
+        const dateA = new Date(a.posted).getTime();
+        const dateB = new Date(b.posted).getTime();
+        return dateB - dateA; // Most recent first
+      });
     }
     return arr;
   }, [jobs, showAboveOnly, sortBy]);

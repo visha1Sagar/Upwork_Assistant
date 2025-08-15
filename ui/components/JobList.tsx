@@ -27,25 +27,12 @@ interface Job {
 // Helper function to format relative time
 function formatRelativeTime(dateString: string): string {
   try {
-    // Handle different date formats
-    let date: Date;
-    
-    // If it's already a relative time string (like "2 hours ago"), return as is
-    if (dateString.includes('ago') || dateString.includes('minutes') || dateString.includes('hours') || dateString.includes('days')) {
-      return dateString;
-    }
-    
-    // If it's an ISO string, parse it
-    if (dateString.includes('T')) {
-      date = new Date(dateString);
-    } else {
-      // Try parsing as a regular date string
-      date = new Date(dateString);
-    }
+    // Parse as ISO string (now that backend always sends timestamps)
+    const date = new Date(dateString);
     
     // Check if date is valid
     if (isNaN(date.getTime())) {
-      return dateString; // Return original if can't parse
+      return 'Unknown time'; // Better fallback message
     }
     
     const now = new Date();
@@ -67,8 +54,8 @@ function formatRelativeTime(dateString: string): string {
       return date.toLocaleDateString();
     }
   } catch (error) {
-    // If any error occurs, return the original string
-    return dateString;
+    // If any error occurs, return a fallback
+    return 'Unknown time';
   }
 }
 
