@@ -10,7 +10,7 @@ export default function JobsDashboard() {
   const [isExpanded, setIsExpanded] = useState(true);
   const [sortBy, setSortBy] = useState<'time' | 'score'>('time');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 20;
 
   // Build the API URL with pagination parameters
   const apiUrl = `/api/jobs?show_above_threshold_only=${showAboveOnly}&sort_by=${sortBy}&page=${currentPage}&page_size=${pageSize}`;

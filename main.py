@@ -230,7 +230,7 @@ async def get_jobs(
     show_above_threshold_only: bool = False,
     sort_by: str = "time",
     page: int = 1,
-    page_size: int = 50
+    page_size: int = 20
 ):
     """Get jobs from database with filtering, sorting, and pagination"""
     conn = get_db_connection()

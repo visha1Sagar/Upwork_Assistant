@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const showAboveOnly = searchParams.get('show_above_threshold_only') === 'true';
     const sortBy = searchParams.get('sort_by') || 'time';
     const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('page_size') || '50');
+    const pageSize = parseInt(searchParams.get('page_size') || '20');
 
     const response = await fetch(
       `${BACKEND_URL}/api/jobs?show_above_threshold_only=${showAboveOnly}&sort_by=${sortBy}&page=${page}&page_size=${pageSize}`,
