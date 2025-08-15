@@ -227,9 +227,10 @@ async def root():
 async def get_jobs(
     show_above_threshold_only: bool = False,
     sort_by: str = "time",
-    limit: int = 50
+    page: int = 1,
+    page_size: int = 50
 ):
-    """Get jobs from database with filtering and sorting"""
+    """Get jobs from database with filtering, sorting, and pagination"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -250,13 +251,34 @@ async def get_jobs(
         if sort_by == "score":
             order_clause = "ORDER BY score DESC, scraped_at DESC"
         
+        # Calculate offset for pagination
+        offset = (page - 1) * page_size
+        
+        # Get total count for all jobs
+        total_count_query = "SELECT COUNT(*) FROM jobs WHERE is_active = 1"
+        cursor.execute(total_count_query)
+        total_all_jobs = cursor.fetchone()[0]
+        
+        # Get total count for above threshold jobs
+        above_threshold_query = f"SELECT COUNT(*) FROM jobs WHERE score >= {threshold} AND is_active = 1"
+        cursor.execute(above_threshold_query)
+        total_above_threshold = cursor.fetchone()[0]
+        
+        # Get filtered count (for current filter)
+        filtered_count_query = f"""
+            SELECT COUNT(*) FROM jobs {where_clause}
+        """
+        cursor.execute(filtered_count_query)
+        filtered_total_count = cursor.fetchone()[0]
+        
+        # Get paginated results
         query = f"""
             SELECT id, title, description, score, posted_at, url, budget, duration, 
                    experience_level, skills, client_info, proposals, above_threshold
             FROM jobs 
             {where_clause} 
             {order_clause} 
-            LIMIT {limit}
+            LIMIT {page_size} OFFSET {offset}
         """
         
         cursor.execute(query)
@@ -281,7 +303,27 @@ async def get_jobs(
             }
             jobs.append(job)
         
-        return {"jobs": jobs}
+        # Calculate pagination info
+        total_pages = (filtered_total_count + page_size - 1) // page_size  # Ceiling division
+        has_next = page < total_pages
+        has_prev = page > 1
+        
+        return {
+            "jobs": jobs,
+            "pagination": {
+                "current_page": page,
+                "page_size": page_size,
+                "total_count": filtered_total_count,
+                "total_pages": total_pages,
+                "has_next": has_next,
+                "has_prev": has_prev
+            },
+            "stats": {
+                "total_all_jobs": total_all_jobs,
+                "total_above_threshold": total_above_threshold,
+                "filtered_count": filtered_total_count
+            }
+        }
     
     except Exception as e:
         logger.error(f"Error fetching jobs: {e}")

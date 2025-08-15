@@ -6,35 +6,57 @@ import JobList from './JobList';
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function JobsDashboard() {
-  const { data, error, isLoading } = useSWR('/api/jobs', fetcher, { refreshInterval: 30000 });
   const [showAboveOnly, setShowAboveOnly] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [sortBy, setSortBy] = useState<'time' | 'score'>('time');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
+
+  // Build the API URL with pagination parameters
+  const apiUrl = `/api/jobs?show_above_threshold_only=${showAboveOnly}&sort_by=${sortBy}&page=${currentPage}&page_size=${pageSize}`;
+  
+  const { data, error, isLoading } = useSWR(apiUrl, fetcher, { refreshInterval: 30000 });
+  
   const jobs = data?.jobs || [];
+  const pagination = data?.pagination || {
+    current_page: 1,
+    page_size: pageSize,
+    total_count: 0,
+    total_pages: 1,
+    has_next: false,
+    has_prev: false
+  };
+  const apiStats = data?.stats || {
+    total_all_jobs: 0,
+    total_above_threshold: 0,
+    filtered_count: 0
+  };
   const threshold = 0.6;
 
-  const [sortBy, setSortBy] = useState<'time' | 'score'>('time');
-  
-  const filtered = useMemo(() => {
-    let arr = showAboveOnly ? jobs.filter((j: any) => j.score >= threshold) : jobs;
-    if (sortBy === 'score') {
-      arr = [...arr].sort((a, b) => b.score - a.score);
-    } else {
-      // Sort by timestamp (most recent first)
-      arr = [...arr].sort((a, b) => {
-        const dateA = new Date(a.posted).getTime();
-        const dateB = new Date(b.posted).getTime();
-        return dateB - dateA; // Most recent first
-      });
-    }
-    return arr;
-  }, [jobs, showAboveOnly, sortBy]);
+  // Since filtering and sorting is now handled by the backend, we just use the jobs as-is
+  const filtered = jobs;
 
   const stats = useMemo(() => {
-    const total = jobs.length;
-    const aboveThreshold = jobs.filter((j: any) => j.score >= threshold).length;
+    const total = apiStats.total_all_jobs;
+    const aboveThreshold = apiStats.total_above_threshold;
     const avgScore = jobs.length > 0 ? jobs.reduce((sum: number, job: any) => sum + job.score, 0) / jobs.length : 0;
     return { total, aboveThreshold, avgScore };
-  }, [jobs, threshold]);
+  }, [jobs, apiStats]);
+
+  // Handle filter/sort changes - reset to page 1
+  const handleFilterChange = (newShowAboveOnly: boolean) => {
+    setShowAboveOnly(newShowAboveOnly);
+    setCurrentPage(1);
+  };
+
+  const handleSortChange = (newSortBy: 'time' | 'score') => {
+    setSortBy(newSortBy);
+    setCurrentPage(1);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   return (
     <div className="space-y-6">
@@ -43,7 +65,7 @@ export default function JobsDashboard() {
         <div className="flex-1 flex justify-center">
           <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
             <button
-              onClick={() => setShowAboveOnly(false)}
+              onClick={() => handleFilterChange(false)}
               className={`px-4 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
                 !showAboveOnly 
                   ? 'bg-white text-upwork-700 shadow-sm border border-gray-200' 
@@ -53,7 +75,7 @@ export default function JobsDashboard() {
               All Jobs ({stats.total})
             </button>
             <button
-              onClick={() => setShowAboveOnly(true)}
+              onClick={() => handleFilterChange(true)}
               className={`px-4 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
                 showAboveOnly 
                   ? 'bg-white text-upwork-700 shadow-sm border border-gray-200' 
@@ -67,7 +89,7 @@ export default function JobsDashboard() {
         <div className="flex items-center">
           <select
             value={sortBy}
-            onChange={e => setSortBy(e.target.value as 'time' | 'score')}
+            onChange={e => handleSortChange(e.target.value as 'time' | 'score')}
             className="input px-2 py-1 text-sm rounded-md border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-upwork-400 min-w-[90px]"
             style={{ minWidth: '90px' }}
           >
@@ -192,6 +214,116 @@ export default function JobsDashboard() {
 
       {/* Job List */}
       <JobList jobs={filtered} />
+
+      {/* Pagination Controls */}
+      {pagination.total_pages > 1 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-700">
+              Showing page {pagination.current_page} of {pagination.total_pages} 
+              {showAboveOnly ? (
+                <span> ({pagination.total_count} high-match jobs)</span>
+              ) : (
+                <span> ({pagination.total_count} total jobs)</span>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              {/* Previous Button */}
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={!pagination.has_prev}
+                className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                  pagination.has_prev
+                    ? 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Previous
+              </button>
+
+              {/* Page Numbers */}
+              <div className="flex items-center space-x-1">
+                {(() => {
+                  const pages = [];
+                  const maxVisible = 5;
+                  let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                  let endPage = Math.min(pagination.total_pages, startPage + maxVisible - 1);
+                  
+                  // Adjust start if we're near the end
+                  if (endPage - startPage < maxVisible - 1) {
+                    startPage = Math.max(1, endPage - maxVisible + 1);
+                  }
+
+                  // Add first page and ellipsis if needed
+                  if (startPage > 1) {
+                    pages.push(
+                      <button
+                        key={1}
+                        onClick={() => handlePageChange(1)}
+                        className="px-3 py-2 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                      >
+                        1
+                      </button>
+                    );
+                    if (startPage > 2) {
+                      pages.push(<span key="ellipsis1" className="px-2 text-gray-500">...</span>);
+                    }
+                  }
+
+                  // Add visible page numbers
+                  for (let i = startPage; i <= endPage; i++) {
+                    pages.push(
+                      <button
+                        key={i}
+                        onClick={() => handlePageChange(i)}
+                        className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                          i === currentPage
+                            ? 'border-upwork-600 bg-upwork-600 text-white'
+                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {i}
+                      </button>
+                    );
+                  }
+
+                  // Add ellipsis and last page if needed
+                  if (endPage < pagination.total_pages) {
+                    if (endPage < pagination.total_pages - 1) {
+                      pages.push(<span key="ellipsis2" className="px-2 text-gray-500">...</span>);
+                    }
+                    pages.push(
+                      <button
+                        key={pagination.total_pages}
+                        onClick={() => handlePageChange(pagination.total_pages)}
+                        className="px-3 py-2 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                      >
+                        {pagination.total_pages}
+                      </button>
+                    );
+                  }
+
+                  return pages;
+                })()}
+              </div>
+
+              {/* Next Button */}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={!pagination.has_next}
+                className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                  pagination.has_next
+                    ? 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
